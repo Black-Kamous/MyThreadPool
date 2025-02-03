@@ -33,7 +33,7 @@ public:
 
     void start(const int maxThread = 4);
 
-    int submitTask(std::shared_ptr<Task>);
+    Result submitTask(std::shared_ptr<Task>);
 
     void stop();
 

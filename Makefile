@@ -1,8 +1,8 @@
 CC 			= g++-13
 LD			= g++-13
-CXXFLAGS 	= -O0 -Wall -std=c++20 -fPIC -shared
-LDFLAGS		= -lstdc++ -std=c++20 -fPIC -shared -pthread
-TEST_LDFLAGS= -lstdc++ -L.
+CXXFLAGS 	= -O0 -Wall -std=c++20 -fPIC -shared -g
+LDFLAGS		= -lstdc++ -std=c++20 -fPIC -shared -pthread -g
+TEST_LDFLAGS= -lstdc++ -L. -g
 TEST_LDLIBS = -lmythreadpool
 
 SOURCES 	= $(wildcard *.cc)

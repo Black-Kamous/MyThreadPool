@@ -9,9 +9,9 @@ ThreadPool::ThreadPool()
 
 void ThreadPool::stop(){
     stopAll_ = true;
-    notEmpty_.notify_all();
     std::unique_lock<std::mutex> lock(taskListMutex_);
-    canStop_.wait(lock, [&](){ return (taskList_.empty() && pool_.empty()); });
+    notEmpty_.notify_all();
+    canStop_.wait(lock, [&](){ return ( pool_.empty()); });
     std::cout << "Pool safely quited" << std::endl;
 }
 
@@ -77,14 +77,14 @@ void ThreadPool::workThreadFunc(int id)
     }
 }
 
-int ThreadPool::submitTask(std::shared_ptr<Task> spTask)
+Result ThreadPool::submitTask(std::shared_ptr<Task> spTask)
 {
     std::unique_lock<std::mutex> lock(taskListMutex_);
 
     if(!notFull_.wait_for(lock, std::chrono::seconds(1), 
                         [&]() { return taskList_.size() < maxTask_; })){
         std::cout << "Task list full" << std::endl;
-        return -1;
+        return Result(spTask, false);
     }
     std::cout << "+ Submitted a Task" << std::endl;
 
@@ -93,5 +93,5 @@ int ThreadPool::submitTask(std::shared_ptr<Task> spTask)
 
     notEmpty_.notify_all();
 
-    return 0;
+    return Result(spTask);
 }
