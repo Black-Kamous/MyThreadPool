@@ -10,9 +10,11 @@
 #include <functional>
 #include <mutex>
 #include <condition_variable>
+#include <future>
+#include <type_traits>
+
 
 #include "Thread.hh"
-#include "Task.hh"
 
 const int RECOLLECT_TIME_SEC = 60;
 
@@ -27,6 +29,7 @@ enum PoolMode {
 
 class ThreadPool {
 public:
+    using Task = std::function<void()>;
     ThreadPool();
     ~ThreadPool();
 
@@ -35,7 +38,48 @@ public:
 
     void start(const int = 4);
 
-    Result submitTask(std::shared_ptr<Task>);
+    template<typename Func, typename... Args>
+    auto submitTask(Func&& func, Args&&... args) -> std::future<decltype(func(args...))>
+    {
+        std::unique_lock<std::mutex> lock(taskListMutex_);
+        using Rtype = decltype(func(args...));
+        auto f0 = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
+        auto spTask = std::make_shared<std::packaged_task<Rtype()>>(
+            f0);
+        auto future = spTask->get_future();
+
+        if(!notFull_.wait_for(lock, std::chrono::seconds(1), 
+                            [&]() { return taskList_.size() < maxTask_; })){
+            std::cout << "Task list full" << std::endl;
+            auto failTask = std::make_shared<std::packaged_task<Rtype()>>([](){return Rtype();});
+            auto failFuture = failTask->get_future();
+            (*failTask)();
+            return failFuture;
+        }
+        std::cout << "+ Submitted a Task" << std::endl;
+
+        taskList_.emplace([spTask]()->void { (*spTask)(); });
+        currTaskNum_++;
+
+        notEmpty_.notify_all();
+
+        if(mode_ == PoolMode::CACHED
+            &&
+            currTaskNum_ > idleThreadNum_
+            &&
+            curThread_ < maxThread_){
+            static std::atomic_int offset = 0;
+            std::function<void(int)> f = std::bind(&ThreadPool::workThreadFunc, this, std::placeholders::_1);
+
+            pool_.emplace(fixedThread_+offset, std::make_unique<Thread>(f, fixedThread_+offset));
+            std::cout << "= Started a cached thread" << std::endl;
+            pool_[fixedThread_+offset]->start();
+            curThread_++;
+            idleThreadNum_++;
+        }
+
+        return future;
+    }
 
     void stop();
 
@@ -54,7 +98,8 @@ private:
     std::unordered_map<int, std::unique_ptr<Thread>> pool_;
     std::atomic_uint curThread_;
     std::atomic_uint idleThreadNum_;
-    std::queue<std::shared_ptr<Task>> taskList_;
+
+    std::queue<Task> taskList_;
     std::atomic_uint currTaskNum_;
 
     std::condition_variable notEmpty_;

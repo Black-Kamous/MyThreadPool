@@ -42,7 +42,7 @@ void ThreadPool::start(const int maxThread)
 void ThreadPool::workThreadFunc(int id)
 {
     auto lastTime = std::chrono::high_resolution_clock().now();
-    std::shared_ptr<Task> spTask;
+    Task task;
     while(true){
         {
         std::unique_lock<std::mutex> lock(taskListMutex_);
@@ -68,11 +68,11 @@ void ThreadPool::workThreadFunc(int id)
         idleThreadNum_--;
         if(!taskList_.empty()){
             std::cout << "# Get a task on " << std::this_thread::get_id() << std::endl;
-            spTask = taskList_.front();
+            task = taskList_.front();
             taskList_.pop();
             currTaskNum_--;
         }else{
-            spTask = nullptr;
+            task = nullptr;
         }
 
         if(!taskList_.empty())
@@ -81,8 +81,8 @@ void ThreadPool::workThreadFunc(int id)
         notFull_.notify_all();
         }
 
-        if(spTask != nullptr) {
-            spTask->execute();
+        if(task != nullptr) {
+            task();
         }
         idleThreadNum_++;
 
@@ -96,39 +96,7 @@ void ThreadPool::workThreadFunc(int id)
     }
 }
 
-Result ThreadPool::submitTask(std::shared_ptr<Task> spTask)
-{
-    std::unique_lock<std::mutex> lock(taskListMutex_);
 
-    if(!notFull_.wait_for(lock, std::chrono::seconds(1), 
-                        [&]() { return taskList_.size() < maxTask_; })){
-        std::cout << "Task list full" << std::endl;
-        return Result(spTask, false);
-    }
-    std::cout << "+ Submitted a Task" << std::endl;
-
-    taskList_.emplace(spTask);
-    currTaskNum_++;
-
-    notEmpty_.notify_all();
-
-    if(mode_ == PoolMode::CACHED
-        &&
-        currTaskNum_ > idleThreadNum_
-        &&
-        curThread_ < maxThread_){
-        static std::atomic_int offset = 0;
-        std::function<void(int)> f = std::bind(&ThreadPool::workThreadFunc, this, std::placeholders::_1);
-
-        pool_.emplace(fixedThread_+offset, std::make_unique<Thread>(f, fixedThread_+offset));
-        std::cout << "= Started a cached thread" << std::endl;
-        pool_[fixedThread_+offset]->start();
-        curThread_++;
-        idleThreadNum_++;
-    }
-
-    return Result(spTask);
-}
 
 void ThreadPool::setMode(PoolMode mode)
 {
