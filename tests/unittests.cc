@@ -16,7 +16,9 @@ public:
 
 int main() {
     ThreadPool tp;
-    tp.start();
+    tp.start(2);
+    tp.setMode(PoolMode::CACHED);
+    tp.setMaxThread(4);
 
     Result r1 = tp.submitTask(std::make_shared<MyTask>());
     Result r2 = tp.submitTask(std::make_shared<MyTask>());

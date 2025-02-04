@@ -14,6 +14,8 @@
 #include "Thread.hh"
 #include "Task.hh"
 
+const int RECOLLECT_TIME_SEC = 60;
+
 /**********
  * ThreadPool类
 ***********/
@@ -31,21 +33,26 @@ public:
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool operator=(const ThreadPool&) = delete;
 
-    void start(const int maxThread = 4);
+    void start(const int = 4);
 
     Result submitTask(std::shared_ptr<Task>);
 
     void stop();
 
-    PoolMode mode_;
+    void setMode(PoolMode);
+
+    void setMaxThread(size_t);
     
 private:
     void workThreadFunc(int);
 
+    PoolMode mode_;
+    size_t fixedThread_;
     size_t maxThread_;
     size_t maxTask_;
 
     std::unordered_map<int, std::unique_ptr<Thread>> pool_;
+    std::atomic_uint curThread_;
     std::atomic_uint idleThreadNum_;
     std::queue<std::shared_ptr<Task>> taskList_;
     std::atomic_uint currTaskNum_;
