@@ -3,7 +3,7 @@
 ThreadPool::ThreadPool()
     : mode_(PoolMode::FIXED),
     fixedThread_(0),
-    maxTask_(1024),
+    maxTask_(65536),
     stopAll_(false)
 {}
 
@@ -12,7 +12,7 @@ void ThreadPool::stop(){
     std::unique_lock<std::mutex> lock(taskListMutex_);
     notEmpty_.notify_all();
     canStop_.wait(lock, [&](){ return ( pool_.empty()); });
-    std::cout << "Pool safely quited" << std::endl;
+    if(verbose) std::cout << "Pool safely quited" << std::endl;
 }
 
 ThreadPool::~ThreadPool()
@@ -31,7 +31,7 @@ void ThreadPool::start(const int maxThread)
     }
 
     for(int i=0;i<maxThread;++i) {
-        std::cout << "= Started a thread" << std::endl;
+        if(verbose) std::cout << "= Started a thread" << std::endl;
         pool_[i]->start();
         idleThreadNum_++;
         curThread_++;
@@ -57,7 +57,7 @@ void ThreadPool::workThreadFunc(int id)
                     idleThreadNum_--;
                     curThread_--;
                     pool_.erase(id);
-                    std::cout << "- Thread quit on " << std::this_thread::get_id() << std::endl;
+                    if(verbose) std::cout << "- Thread quit on " << std::this_thread::get_id() << std::endl;
                     break;
                 }
             }
@@ -67,7 +67,7 @@ void ThreadPool::workThreadFunc(int id)
         }
         idleThreadNum_--;
         if(!taskList_.empty()){
-            std::cout << "# Get a task on " << std::this_thread::get_id() << std::endl;
+            if(verbose) std::cout << "# Get a task on " << std::this_thread::get_id() << std::endl;
             task = taskList_.front();
             taskList_.pop();
             currTaskNum_--;
@@ -90,7 +90,7 @@ void ThreadPool::workThreadFunc(int id)
             idleThreadNum_--;
             pool_.erase(id);
             canStop_.notify_all();
-            std::cout << "- Thread quit on " << std::this_thread::get_id() << std::endl;
+            if(verbose) std::cout << "- Thread quit on " << std::this_thread::get_id() << std::endl;
             break;
         }
     }
@@ -106,4 +106,9 @@ void ThreadPool::setMode(PoolMode mode)
 void ThreadPool::setMaxThread(size_t max)
 {
     maxThread_ = max;
+}
+
+bool ThreadPool::taskEmpty()
+{
+    return currTaskNum_==0;
 }

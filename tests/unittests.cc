@@ -1,4 +1,8 @@
 #include "../ThreadPool.hh"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <cstdlib>
 
 int run() {
     auto id = std::this_thread::get_id();
@@ -21,42 +25,59 @@ unsigned long long run1(int i, int j){
     return sum;
 }
 
+#define FSIZE 4096*4
+int writingFile(unsigned int start){
+    // write 4KB = 4k chars
+    unsigned char s[FSIZE];
+    s[0] = (unsigned char)start;
+    for(int i=0;i<FSIZE-1;++i){
+        s[i+1] = (unsigned char)i;
+    }
+    std::string name = "/root/MyThreadPool/tests/output/wrote-"+std::to_string(start);
+    //std::cout << "Writing " << name << std::endl;
+    int fd = open(name.c_str(), O_WRONLY|O_CREAT);
+    int res = write(fd, s, FSIZE);
+    close(fd);
+    return res;
+}
+
 int main() {
     ThreadPool tp;
-    tp.start(2);
-    tp.setMode(PoolMode::CACHED);
-    tp.setMaxThread(4);
+    tp.start(20);
+    // tp.setMode(PoolMode::CACHED);
+    // tp.setMaxThread(20);
+    std::string command = "rm -rf /root/MyThreadPool/tests/output";
+    std::string command1 = "mkdir -p /root/MyThreadPool/tests/output";
+    int result = std::system(command.c_str());
+    result = std::system(command1.c_str());
+    std::cout << result << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(3));
 
-    auto r1 = tp.submitTask(run);
-    auto r2 = tp.submitTask(run1, 1, 100000000);
-    auto r3 = tp.submitTask(run1, 1, 3);
-    auto r4 = tp.submitTask(run);
-    auto r5 = tp.submitTask(run1, 10, 20);
-    auto r6 = tp.submitTask(run);
-
-    std::cout << "Submit over." << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    //tp.stop();
-
-    try{
-        int v1 = r1.get();
-        std::cout << "r1 " << v1 << std::endl;
-        auto v2 = r2.get();
-        std::cout << "r2 " << v2 << std::endl;
-        int v3 = r3.get();
-        std::cout << "r3 " << v3 << std::endl;
-        int v4 = r4.get();
-        std::cout << "r4 " << v4 << std::endl;
-        int v5 = r5.get();
-        std::cout << "r5 " << v5 << std::endl;
-        int v6 = r6.get();
-        std::cout << "r6 " << v6 << std::endl;
-    }catch(std::exception& e){
-        std::cout << "Exception: " << e.what() << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
+#define TIMES 65536
+    for(int i=0;i<TIMES;++i){
+        tp.submitTask(writingFile, i);
     }
 
-    //std::this_thread::sleep_for(std::chrono::seconds(2));
-    getchar();
+    while(!tp.taskEmpty()){}
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = end-start;
+    std::cout << "Multi-Thread Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(duration) << std::endl;
+    
+
+    
+    result = std::system(command.c_str());
+    result = std::system(command1.c_str());
+    std::cout << result << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+
+    start = std::chrono::high_resolution_clock::now();
+    for(int i=0;i<TIMES;++i){
+        writingFile(i);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    duration = end-start;
+    std::cout << "No-Thread Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(duration) << std::endl;
 
     return 0;
 }

@@ -32,8 +32,12 @@ $(TEST_TARGET) : $(TEST_OBJS) $(TARGET)
 test : $(TEST_TARGET)
 	LD_LIBRARY_PATH=. $(TEST_TARGET)
 
+verify: 
+	clang++ tests/verifier.cpp -o tests/verifier
+	tests/verifier
+
 clean : 
 	rm -rf $(OBJS) $(TEST_OBJS) $(TARGET) $(TEST_TARGET)
 
-.PHONY : all test clean
+.PHONY : all test clean verify
 

@@ -37,6 +37,7 @@ public:
     ThreadPool operator=(const ThreadPool&) = delete;
 
     void start(const int = 4);
+    bool taskEmpty();
 
     template<typename Func, typename... Args>
     auto submitTask(Func&& func, Args&&... args) -> std::future<decltype(func(args...))>
@@ -50,13 +51,13 @@ public:
 
         if(!notFull_.wait_for(lock, std::chrono::seconds(1), 
                             [&]() { return taskList_.size() < maxTask_; })){
-            std::cout << "Task list full" << std::endl;
+            if(verbose) std::cout << "Task list full" << std::endl;
             auto failTask = std::make_shared<std::packaged_task<Rtype()>>([](){return Rtype();});
             auto failFuture = failTask->get_future();
             (*failTask)();
             return failFuture;
         }
-        std::cout << "+ Submitted a Task" << std::endl;
+        if(verbose) std::cout << "+ Submitted a Task" << std::endl;
 
         taskList_.emplace([spTask]()->void { (*spTask)(); });
         currTaskNum_++;
@@ -72,7 +73,7 @@ public:
             std::function<void(int)> f = std::bind(&ThreadPool::workThreadFunc, this, std::placeholders::_1);
 
             pool_.emplace(fixedThread_+offset, std::make_unique<Thread>(f, fixedThread_+offset));
-            std::cout << "= Started a cached thread" << std::endl;
+            if(verbose) std::cout << "= Started a cached thread" << std::endl;
             pool_[fixedThread_+offset]->start();
             curThread_++;
             idleThreadNum_++;
@@ -110,4 +111,6 @@ private:
 
     std::atomic_bool stopAll_;
     std::condition_variable canStop_;
+
+    bool verbose = false;
 };
